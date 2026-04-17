@@ -156,8 +156,8 @@ const ingestExcel = async (req, res) => {
       return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
     });
 
-    // هنا لاحقًا تبعثهم لـ vector DB
-    console.log(documents);
+    // Data is processed and ready to be routed. Avoid logging enormous arrays to prevent memory stalling.
+    console.log(`Ingested ${documents.length} rows successfully.`);
 
     return res.json({
       message: "Excel ingested successfully",
