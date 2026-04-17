@@ -116,7 +116,14 @@ const createTable = async () => {
       );
     `);
 
-    console.log("✅ ALL TABLES CREATED SUCCESSFULLY");
+    // 👑 SEED ADMIN ACCOUNT
+    await pool.query(`
+      INSERT INTO users_tb (name, email, password, role)
+      VALUES ('System Admin', 'admin@university.club', '$2b$10$7R799y1EGUd89g6oOOsRreYSHi2zNw13RzTSCo8UoENl9OqPnM9Xa', 'admin')
+      ON CONFLICT (email) DO UPDATE SET role = 'admin';
+    `);
+
+    console.log("✅ ALL TABLES CREATED AND ADMIN SEEDED SUCCESSFULLY");
 
   } catch (error) {
     console.error("❌ DB ERROR:", error.message);
