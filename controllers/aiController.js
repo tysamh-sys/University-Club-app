@@ -181,10 +181,10 @@ const archivistAgent = async (req, res) => {
     console.log(`📊 Excel loaded: ${data.length} rows found.`);
 
     // Advanced filtering to exclude common stop words so they don't trigger false positive matches
-    const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "you", "are", "what", "how", "who", "where", "when", "why", "can", "will", "your", "their", "them", "these", "those", "does", "did", "was", "were", "has", "have", "had", "been", "about", "tell", "give", "find", "search", "show"]);
+    const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "you", "are", "what", "how", "who", "where", "when", "why", "can", "will", "your", "their", "them", "these", "those", "does", "did", "was", "were", "has", "have", "had", "been", "about", "tell", "give", "find", "search", "show", "event", "events", "evenement", "evenements", "évenement", "évènement", "événement"]);
     
-    // Extract keywords > 2 chars and not in stopwords
-    const words = question.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+    // Extract keywords: Use Unicode \p{L}\p{N} to keep accents (é, è, à) and numbers. Keep words > 2 chars OR if it is a number.
+    const words = question.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(w => !stopWords.has(w) && (w.length > 2 || !isNaN(w)));
     
     let results = [];
     if (words.length > 0) {
