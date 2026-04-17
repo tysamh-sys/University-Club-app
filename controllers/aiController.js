@@ -180,22 +180,29 @@ const archivistAgent = async (req, res) => {
     const data = readExcelFile("./data/dataset.xlsx");
     console.log(`📊 Excel loaded: ${data.length} rows found.`);
 
-    const words = question.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).filter(w => w.length > 2);
+    // Advanced filtering to exclude common stop words so they don't trigger false positive matches
+    const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "you", "are", "what", "how", "who", "where", "when", "why", "can", "will", "your", "their", "them", "these", "those", "does", "did", "was", "were", "has", "have", "had", "been", "about", "tell", "give", "find", "search", "show"]);
+    
+    // Extract keywords > 2 chars and not in stopwords
+    const words = question.toLowerCase().replace(/[^\w\s]/gi, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
     
     let results = [];
     if (words.length > 0) {
       results = data.map(row => {
         const text = Object.values(row).join(" ").toLowerCase();
+        // Calculate score based on keyword matches
         const score = words.reduce((acc, word) => acc + (text.includes(word) ? 1 : 0), 0);
         return { row, score };
       }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).map(r => r.row);
     }
 
-    console.log(`🎯 Search results: ${results.length} matches.`);
+    console.log(`🎯 Search results: ${results.length} matches using keywords: [${words.join(", ")}].`);
 
-    const context = results.slice(0, 10).map(row => {
+    // Only send the top 5 results to prevent overloading the LLM context
+    const context = results.slice(0, 5).map(row => {
         return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
     }).join("\n\n");
+
 
     // 🤖 AI call
     const axios = require("axios");
