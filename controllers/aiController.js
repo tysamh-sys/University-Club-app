@@ -180,70 +180,115 @@ const archivistAgent = async (req, res) => {
     const data = readExcelFile("./data/dataset.xlsx");
     console.log(`📊 Excel loaded: ${data.length} rows found.`);
 
-    // Advanced filtering to exclude common stop words so they don't trigger false positive matches
-    const stopWords = new Set(["the", "and", "for", "that", "this", "with", "from", "you", "are", "what", "how", "who", "where", "when", "why", "can", "will", "your", "their", "them", "these", "those", "does", "did", "was", "were", "has", "have", "had", "been", "about", "tell", "give", "find", "search", "show", "event", "events", "evenement", "evenements", "évenement", "évènement", "événement"]);
-    
-    // Extract keywords: Use Unicode \p{L}\p{N} to keep accents (é, è, à) and numbers. Keep words > 2 chars OR if it is a number.
-    const words = question.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(w => !stopWords.has(w) && (w.length > 2 || !isNaN(w)));
-    
-    let results = [];
-    if (words.length > 0) {
-      results = data.map(row => {
-        const text = Object.values(row).join(" ").toLowerCase();
-        // Calculate score based on keyword matches
-        const score = words.reduce((acc, word) => acc + (text.includes(word) ? 1 : 0), 0);
-        return { row, score };
-      }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).map(r => r.row);
-    }
-
-    console.log(`🎯 Search results: ${results.length} matches using keywords: [${words.join(", ")}].`);
-
-    // Only send the top 5 results to prevent overloading the LLM context
-    const context = results.slice(0, 5).map(row => {
-        return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
-    }).join("\n\n");
-
-
-    // 🤖 AI call
     const axios = require("axios");
 
-    const response = await axios.post(
+    // ============================================
+    // STEP 1: The NLP Router (LLM Pre-Processing)
+    // ============================================
+    const routerPrompt = `
+You are an intelligent networking router for a University Club Database.
+Classify the user's question into ONE of these intents:
+1. "direct_lookup": The user asks for a specific Event ID or an exact number (e.g. "Event 10").
+2. "aggregation": The user asks a dataset-wide query that must NOT return multiple rows (e.g. "Give me all data", "How many events", "Total budget").
+3. "search": The user asks a general question requiring keyword matching. Extract the best semantic keywords.
+
+Return ONLY valid JSON:
+If direct_lookup: {"intent": "direct_lookup", "event_id": 10}
+If aggregation: {"intent": "aggregation"}
+If search: {"intent": "search", "keywords": ["word1", "word2"]}
+
+Question: "${question}"
+`;
+
+    const routerResponse = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: routerPrompt }],
+        temperature: 0.1,
+        response_format: { type: "json_object" }
+      },
+      { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" } }
+    );
+
+    const routing = JSON.parse(routerResponse.data.choices[0].message.content);
+    console.log(`🚦 Router Decision:`, routing);
+
+    // ============================================
+    // STEP 2: Intelligent Data Processing (Node.js)
+    // ============================================
+    let context = "";
+    let usedDataCount = 0;
+
+    if (routing.intent === "direct_lookup" && routing.event_id) {
+        const found = data.find(r => String(r.Event_ID) === String(routing.event_id));
+        if (found) {
+            context = Object.entries(found).map(([k, v]) => `${k}: ${v}`).join("\n");
+            usedDataCount = 1;
+        }
+    } else if (routing.intent === "aggregation") {
+        // Node.js calculates stats instantly without freezing the LLM or frontend
+        context = `[SYSTEM AGGREGATION DETECTED]\nTotal Events Recorded: ${data.length}\nNote: Do not list all events. Provide a high-level summary confirming the total volume or summary back to the user based on the math provided.`;
+        usedDataCount = data.length;
+    } else {
+        // Semantic Search
+        const keywords = routing.keywords || [];
+        if (keywords.length > 0) {
+            const results = data.map(row => {
+                const textText = Object.values(row).join(" ").toLowerCase();
+                const score = keywords.reduce((acc, word) => acc + (textText.includes(String(word).toLowerCase()) ? 1 : 0), 0);
+                return { row, score };
+            }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).map(r => r.row);
+            
+            context = results.slice(0, 5).map(row => {
+                return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
+            }).join("\n\n");
+            usedDataCount = results.length;
+        }
+    }
+
+    // ============================================
+    // STEP 3: Handle Zero Results Short-Circuit
+    // ============================================
+    if (usedDataCount === 0 && routing.intent !== "aggregation") {
+        console.log(`⚡ Short-circuiting: No records found.`);
+        return res.json({
+            answer: "I couldn't find any specific club records matching your query in our archives.",
+            used_data: 0
+        });
+    }
+
+    // ============================================
+    // STEP 4: The Generative Answer (LLM Call 2)
+    // ============================================
+    const finalResponse = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
-            content: "You are the Archivist AI of a university club. Answer the user politely. Use the provided context to answer factually. If the context is empty or lacks the answer, use your general knowledge but clarify that you couldn't find specific club records."
+            content: "You are the Archivist AI of a university club. Answer the user politely. Use the provided context directly to answer the exact scope of the question factually."
           },
           {
             role: "user",
-            content: `
-Context:
-${context || 'No specific club records found.'}
-
-Question:
-${question}
-            `
+            content: `Context:\n${context}\n\nQuestion:\n${question}`
           }
-        ]
+        ],
+        temperature: 0.7
       },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
+      { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" } }
     );
 
-    console.log(`🤖 AI Answer length: ${response.data.choices[0].message.content.length}`);
+    console.log(`🤖 AI Answer length: ${finalResponse.data.choices[0].message.content.length}`);
 
     return res.json({
-      answer: response.data.choices[0].message.content,
-      used_data: results.length
+      answer: finalResponse.data.choices[0].message.content,
+      used_data: usedDataCount
     });
 
   } catch (err) {
+    console.error("Archivist Error:", err);
     return res.status(500).json({ error: err.message });
   }
 };
