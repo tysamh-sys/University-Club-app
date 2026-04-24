@@ -147,24 +147,48 @@ Rules:
 
 const { readExcelFile } = require("../services/excelService");
 
+const pool = require("../config/db");
+
 // POST /ai/ingest-excel
 const ingestExcel = async (req, res) => {
   try {
     const data = readExcelFile("./data/dataset.xlsx");
 
-    const documents = data.map((row) => {
-      return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
-    });
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS historical_events (
+        event_id INTEGER PRIMARY KEY,
+        event_name VARCHAR(255),
+        category VARCHAR(100),
+        event_date VARCHAR(255),
+        location VARCHAR(255),
+        participants INT,
+        budget_tnd FLOAT,
+        revenue_tnd FLOAT,
+        main_issue VARCHAR(255),
+        secondary_issue VARCHAR(255),
+        satisfaction_score FLOAT
+      );
+    `);
 
-    // Data is processed and ready to be routed. Avoid logging enormous arrays to prevent memory stalling.
-    console.log(`Ingested ${documents.length} rows successfully.`);
+    for (const row of data) {
+      await pool.query(
+        `INSERT INTO historical_events 
+        (event_id, event_name, category, event_date, location, participants, budget_tnd, revenue_tnd, main_issue, secondary_issue, satisfaction_score) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ON CONFLICT (event_id) DO NOTHING;`,
+        [row.Event_ID, row.Event_Name, row.Category, row.Date, row.Location, row.Participants, row.Budget_TND, row.Revenue_TND, row.Main_Issue, row.Secondary_Issue, row.Satisfaction_Score]
+      );
+    }
+
+    console.log(`Ingested ${data.length} rows into database.`);
 
     return res.json({
-      message: "Excel ingested successfully",
-      count: documents.length
+      message: "Excel ingested successfully into database",
+      count: data.length
     });
 
   } catch (err) {
+    console.error("Ingest Error:", err);
     return res.status(500).json({
       message: err.message
     });
@@ -176,9 +200,6 @@ const archivistAgent = async (req, res) => {
   try {
     const { question } = req.body;
     console.log(`🔍 Archivist hit with question: "${question}"`);
-
-    const data = readExcelFile("./data/dataset.xlsx");
-    console.log(`📊 Excel loaded: ${data.length} rows found.`);
 
     const axios = require("axios");
 
@@ -221,29 +242,29 @@ Question: "${question}"
     let usedDataCount = 0;
 
     if (routing.intent === "direct_lookup" && routing.event_id) {
-        const found = data.find(r => String(r.Event_ID) === String(routing.event_id));
-        if (found) {
-            context = Object.entries(found).map(([k, v]) => `${k}: ${v}`).join("\n");
+        const result = await pool.query("SELECT * FROM historical_events WHERE event_id = $1", [routing.event_id]);
+        if (result.rows.length > 0) {
+            context = Object.entries(result.rows[0]).map(([k, v]) => `${k}: ${v}`).join("\n");
             usedDataCount = 1;
         }
     } else if (routing.intent === "aggregation") {
-        // Node.js calculates stats instantly without freezing the LLM or frontend
-        context = `[SYSTEM AGGREGATION DETECTED]\nTotal Events Recorded: ${data.length}\nNote: Do not list all events. Provide a high-level summary confirming the total volume or summary back to the user based on the math provided.`;
-        usedDataCount = data.length;
+        const result = await pool.query("SELECT COUNT(*) as count FROM historical_events");
+        context = `[SYSTEM AGGREGATION DETECTED]\nTotal Events Recorded: ${result.rows[0].count}\nNote: Do not list all events. Provide a high-level summary confirming the total volume or summary back to the user based on the math provided.`;
+        usedDataCount = parseInt(result.rows[0].count);
     } else {
-        // Semantic Search
+        // Semantic Search using ILIKE in DB
         const keywords = routing.keywords || [];
         if (keywords.length > 0) {
-            const results = data.map(row => {
-                const textText = Object.values(row).join(" ").toLowerCase();
-                const score = keywords.reduce((acc, word) => acc + (textText.includes(String(word).toLowerCase()) ? 1 : 0), 0);
-                return { row, score };
-            }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).map(r => r.row);
+            const conditions = keywords.map((word, i) => `(event_name ILIKE $${i+1} OR category ILIKE $${i+1} OR main_issue ILIKE $${i+1} OR location ILIKE $${i+1})`).join(" OR ");
+            const values = keywords.map(w => `%${w}%`);
+            const queryStr = `SELECT * FROM historical_events WHERE ${conditions} LIMIT 5`;
             
-            context = results.slice(0, 5).map(row => {
+            const result = await pool.query(queryStr, values);
+            
+            context = result.rows.map(row => {
                 return Object.entries(row).map(([k, v]) => `${k}: ${v}`).join("\n");
             }).join("\n\n");
-            usedDataCount = results.length;
+            usedDataCount = result.rows.length;
         }
     }
 
