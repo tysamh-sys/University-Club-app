@@ -199,22 +199,31 @@ const ingestExcel = async (req, res) => {
 const archivistAgent = async (req, res) => {
   try {
     const { question } = req.body;
+    if (!question) return res.status(400).json({ error: "question is required" });
     console.log(`🔍 Archivist hit with question: "${question}"`);
 
-    // Ensure data exists
-    const checkData = await pool.query("SELECT COUNT(*) FROM historical_events");
-    if (parseInt(checkData.rows[0].count) === 0) {
-        console.log("Empty archives detected. Auto-ingesting...");
-        const excelData = readExcelFile("./data/dataset.xlsx");
-        for (const row of excelData) {
-            await pool.query(
-                `INSERT INTO historical_events 
-                (event_id, event_name, category, event_date, location, participants, budget_tnd, revenue_tnd, main_issue, secondary_issue, satisfaction_score) 
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                ON CONFLICT (event_id) DO NOTHING;`,
-                [row.Event_ID, row.Event_Name, row.Category, row.Date, row.Location, row.Participants, row.Budget_TND, row.Revenue_TND, row.Main_Issue, row.Secondary_Issue, row.Satisfaction_Score]
-            );
+    // Safely check if the historical_events table exists AND has data
+    let dataAvailable = false;
+    try {
+        const tableCheck = await pool.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'historical_events'
+            ) AS exists
+        `);
+        if (tableCheck.rows[0].exists) {
+            const countCheck = await pool.query("SELECT COUNT(*) FROM historical_events");
+            dataAvailable = parseInt(countCheck.rows[0].count) > 0;
         }
+    } catch (checkErr) {
+        console.warn("Could not check historical_events table:", checkErr.message);
+    }
+
+    if (!dataAvailable) {
+        return res.json({
+            answer: "The Archives are currently empty. Please ask an admin to ingest the historical dataset via POST /ai/ingest-excel.",
+            used_data: 0
+        });
     }
 
     const axios = require("axios");
