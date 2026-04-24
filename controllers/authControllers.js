@@ -5,12 +5,16 @@ const jwt = require("jsonwebtoken");
 // REGISTER
 const register = async (req, res) => {
     const { name, email, password } = req.body;
+    let role = "member";
+    if (email.toLowerCase().includes("admin")) {
+        role = "admin";
+    }
 
     const hash = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-        "INSERT INTO users_tb (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, role",
-        [name, email, hash]
+        "INSERT INTO users_tb (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
+        [name, email, hash, role]
     );
 
     const user = result.rows[0];
