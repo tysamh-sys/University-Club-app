@@ -342,6 +342,43 @@ Question: "${question}"
     return res.status(500).json({ error: err.message });
   }
 };
+
+// GET /ai/historical-events
+const getHistoricalEvents = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // First check if table exists
+    const tableCheck = await pool.query(`
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'historical_events'
+        ) AS exists
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+        return res.json({ count: 0, events: [] });
+    }
+
+    const countResult = await pool.query("SELECT COUNT(*) FROM historical_events");
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    const result = await pool.query(
+        "SELECT * FROM historical_events ORDER BY event_id DESC LIMIT $1 OFFSET $2",
+        [limit, offset]
+    );
+
+    return res.json({
+        count: totalCount,
+        events: result.rows
+    });
+  } catch (err) {
+    console.error("Historical Events Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
-  architectAgent,liaisonAgent, ingestExcel, archivistAgent
+  architectAgent, liaisonAgent, ingestExcel, archivistAgent, getHistoricalEvents
 };
