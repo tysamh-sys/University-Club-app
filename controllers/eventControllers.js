@@ -66,7 +66,12 @@ const getEvents = async (req, res) => {
             index++;
         }
 
-        query += ` ORDER BY e.date ASC`;
+        // 🧠 pagination
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = parseInt(req.query.offset) || 0;
+
+        query += ` ORDER BY e.date ASC LIMIT $${index} OFFSET $${index + 1}`;
+        values.push(limit, offset);
 
         const result = await pool.query(query, values);
 

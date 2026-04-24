@@ -201,6 +201,22 @@ const archivistAgent = async (req, res) => {
     const { question } = req.body;
     console.log(`🔍 Archivist hit with question: "${question}"`);
 
+    // Ensure data exists
+    const checkData = await pool.query("SELECT COUNT(*) FROM historical_events");
+    if (parseInt(checkData.rows[0].count) === 0) {
+        console.log("Empty archives detected. Auto-ingesting...");
+        const excelData = readExcelFile("./data/dataset.xlsx");
+        for (const row of excelData) {
+            await pool.query(
+                `INSERT INTO historical_events 
+                (event_id, event_name, category, event_date, location, participants, budget_tnd, revenue_tnd, main_issue, secondary_issue, satisfaction_score) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ON CONFLICT (event_id) DO NOTHING;`,
+                [row.Event_ID, row.Event_Name, row.Category, row.Date, row.Location, row.Participants, row.Budget_TND, row.Revenue_TND, row.Main_Issue, row.Secondary_Issue, row.Satisfaction_Score]
+            );
+        }
+    }
+
     const axios = require("axios");
 
     // ============================================
@@ -234,6 +250,10 @@ Question: "${question}"
 
     const routing = JSON.parse(routerResponse.data.choices[0].message.content);
     console.log(`🚦 Router Decision:`, routing);
+
+    if (!routing || !routing.intent) {
+        throw new Error("Could not determine intent from LLM response");
+    }
 
     // ============================================
     // STEP 2: Intelligent Data Processing (Node.js)
