@@ -32,6 +32,8 @@ const createTable = async () => {
         title VARCHAR(255),
         description TEXT,
         date TIMESTAMP,
+        location VARCHAR(255),
+        budget NUMERIC,
         created_by INTEGER,
         created_at TIMESTAMP DEFAULT NOW(),
         is_archived BOOLEAN DEFAULT FALSE
@@ -41,7 +43,9 @@ const createTable = async () => {
     // Add column if table already exists
     await pool.query(`
       ALTER TABLE events ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
-    `);
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS location VARCHAR(255);
+      ALTER TABLE events ADD COLUMN IF NOT EXISTS budget NUMERIC;
+    `).catch(() => {});
 
     // 🤝 SPONSORS
     await pool.query(`
