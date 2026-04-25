@@ -116,6 +116,51 @@ const createTable = async () => {
       );
     `);
 
+    // 💬 CHAT MESSAGES
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        receiver_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        encrypted_message TEXT NOT NULL,
+        nonce TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 🔑 PUBLIC KEYS FOR E2EE
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public_keys (
+        user_id INT PRIMARY KEY REFERENCES users_tb(id) ON DELETE CASCADE,
+        public_key TEXT NOT NULL
+      );
+    `);
+
+    // ⚠️ USER PROBLEMS (Feedback)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_problems (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        problem_text TEXT NOT NULL,
+        reply_text TEXT,
+        is_resolved BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 🔔 NOTIFICATIONS
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // 👑 SEED ADMIN ACCOUNT
     await pool.query(`
       INSERT INTO users_tb (name, email, password, role)

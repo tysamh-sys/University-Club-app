@@ -47,4 +47,10 @@ app.use("/ai", aiRoutes);
 const fileRoutes = require("./routers/fileRouters");
 app.use("/files", fileRoutes);
 
+const chatRouters = require("./routers/chatRouters");
+app.use("/chat", chatRouters);
+
+const problemRouters = require("./routers/problemRouters");
+app.use("/problems", problemRouters);
+
 module.exports = app;
