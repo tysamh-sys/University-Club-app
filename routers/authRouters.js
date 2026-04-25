@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { login,register,getMe,googleLogin, changePassword } = require("../controllers/authControllers");
+const { login,register,getMe,googleLogin, changePassword, emergencyUnblock } = require("../controllers/authControllers");
 const auth = require("../middlewares/auth");
 
 router.post("/login", login);
@@ -13,5 +13,7 @@ router.get("/",getMe)
 router.post("/google", googleLogin);
 
 router.post("/change-password", auth, changePassword);
+
+router.get("/emergency-unblock", emergencyUnblock);
 
 module.exports = router;

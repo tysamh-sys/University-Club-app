@@ -1,6 +1,9 @@
 const blockUserMiddleware = async (req, res, next) => {
   try {
     if (!req.user) return next();
+    
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'president';
+    if (isAdmin) return next();
 
     const blocked = await fetch(
       `${process.env.POSTIGER_URL}/blocked_users?user_id=eq.${req.user.id}`,
