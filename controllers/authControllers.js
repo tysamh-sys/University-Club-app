@@ -35,13 +35,18 @@ const register = async (req, res) => {
 const login = async (req, res) => {
     const { email, password } = req.body;
 
+    const ip = req.headers['x-forwarded-for'] || req.ip;
+    const userAgent = req.headers['user-agent'] || 'Unknown Device';
+
     const result = await pool.query(
         "SELECT u.*, b.id as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id WHERE u.email = $1",
         [email]
     );
 
-    if (result.rows.length === 0)
+    if (result.rows.length === 0) {
+        await pool.query("INSERT INTO audit_logs (endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6)", [req.originalUrl, req.method, ip, 'LOGIN_FAILED', 'danger', userAgent]);
         return res.status(401).json({ message: "User not found" });
+    }
 
     const user = result.rows[0];
     const isAdmin = user.role === 'admin' || user.role === 'president';
@@ -61,8 +66,12 @@ const login = async (req, res) => {
 
     const valid = await bcrypt.compare(password, user.password);
 
-    if (!valid)
+    if (!valid) {
+        await pool.query("INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", [user.id, req.originalUrl, req.method, ip, 'LOGIN_FAILED', 'danger', userAgent]);
         return res.status(401).json({ message: "Wrong password" });
+    }
+
+    await pool.query("INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", [user.id, req.originalUrl, req.method, ip, 'LOGIN_SUCCESS', 'success', userAgent]);
 
     const token = jwt.sign(
         { id: user.id, name: user.name, role: user.role },

@@ -20,10 +20,15 @@ const createTable = async () => {
       CREATE TABLE IF NOT EXISTS blocked_users (
         id SERIAL PRIMARY KEY,
         user_id INTEGER UNIQUE,
+        ip_address TEXT UNIQUE,
         reason TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    await pool.query(`
+      ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS ip_address TEXT UNIQUE;
+    `).catch(() => {});
 
     // 📅 EVENTS
     await pool.query(`
@@ -116,9 +121,19 @@ const createTable = async () => {
         endpoint TEXT,
         method TEXT,
         ip TEXT,
+        action VARCHAR(50),
+        status VARCHAR(20),
+        user_agent TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+
+    // Add columns if table already exists
+    await pool.query(`
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status VARCHAR(20);
+      ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+    `).catch(() => {});
 
     // 💬 CHAT MESSAGES
     await pool.query(`

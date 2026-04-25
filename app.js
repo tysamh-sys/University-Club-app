@@ -53,4 +53,7 @@ app.use("/chat", chatRouters);
 const problemRouters = require("./routers/problemRouters");
 app.use("/problems", problemRouters);
 
+const securityRoutes = require("./routers/securityRouters");
+app.use("/security", securityRoutes);
+
 module.exports = app;
