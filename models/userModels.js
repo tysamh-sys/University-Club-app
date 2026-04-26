@@ -139,6 +139,18 @@ const createTable = async () => {
       );
     `);
 
+    // 🔔 NOTIFICATIONS
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     // 🔑 PUBLIC KEYS FOR E2EE
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public_keys (

@@ -65,7 +65,13 @@ const sendMessage = async (req, res) => {
 
     return res.status(201).json({ message: "Message sent", data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    console.error("CHAT SEND ERROR:", error);
+    return res.status(500).json({ 
+      message: "Server error", 
+      error: error.message,
+      detail: error.detail,
+      code: error.code 
+    });
   }
 };
 
