@@ -180,7 +180,10 @@ const updateEvent = async (req, res) => {
     } catch (err) {
         res.status(500).json({
             message: "Server error",
-            error: err.message
+            error: err.message,
+            detail: err.detail,
+            hint: err.hint,
+            code: err.code
         });
     }
 };
@@ -371,7 +374,13 @@ const requestParticipation = async (req, res) => {
     if (error.code === '23505') { 
       return res.status(400).json({ message: "You have already requested to join this event." });
     }
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(500).json({ 
+        message: "Server error", 
+        error: error.message,
+        detail: error.detail,
+        hint: error.hint,
+        code: error.code 
+    });
   }
 };
 
