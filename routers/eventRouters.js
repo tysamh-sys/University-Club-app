@@ -12,6 +12,7 @@ const {
     archiveEvent,
     restoreEvent,
     requestParticipation,
+    getMyRequests,
     getEventRequests,
     approveRequest,
     rejectRequest
@@ -22,6 +23,7 @@ router.post("/", auth, createEvent);
 router.get("/", auth, getEvents);
 
 router.get("/archived", auth, getArchivedEvents);
+router.get("/my-requests", auth, getMyRequests);
 
 // Participation Routes
 router.post("/:id/request-participation", auth, requestParticipation);

@@ -447,6 +447,19 @@ const rejectRequest = async (req, res) => {
   }
 };
 
+const getMyRequests = async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    const result = await pool.query(
+      "SELECT event_id FROM participation_requests WHERE user_id = $1",
+      [user_id]
+    );
+    res.json({ requests: result.rows.map(r => r.event_id) });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   createEvent,
   getEvents,
@@ -457,6 +470,7 @@ module.exports = {
   archiveEvent,
   restoreEvent,
   requestParticipation,
+  getMyRequests,
   getEventRequests,
   approveRequest,
   rejectRequest
