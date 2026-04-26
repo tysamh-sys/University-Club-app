@@ -2,8 +2,7 @@ const pool = require("../config/db");
 
 const createTable = async () => {
   try {
-
-    // 👤 USERS TABLE
+    // 👤 USERS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users_tb (
         id SERIAL PRIMARY KEY,
@@ -21,81 +20,75 @@ const createTable = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS blocked_users (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER UNIQUE,
-        ip_address TEXT UNIQUE,
+        user_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+        ip_address VARCHAR(45),
+        reason TEXT,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id)
+      );
+      ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+    `);
+
+    // 🌐 IP BLACKLIST
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ip_blacklist (
+        ip_address VARCHAR(45) PRIMARY KEY,
         reason TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    await pool.query(`
-      ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS ip_address TEXT UNIQUE;
-      ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
-    `).catch(() => {});
-
     // 📅 EVENTS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
-        title VARCHAR(255),
+        title VARCHAR(255) NOT NULL,
         description TEXT,
-        date TIMESTAMP,
+        date DATE NOT NULL,
         location VARCHAR(255),
-        budget NUMERIC,
-        created_by INTEGER,
-        created_at TIMESTAMP DEFAULT NOW(),
-        is_archived BOOLEAN DEFAULT FALSE
+        budget DECIMAL(10, 2),
+        created_by INT REFERENCES users_tb(id),
+        is_archived BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
       );
-    `);
-
-    // Add column if table already exists
-    await pool.query(`
       ALTER TABLE events ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
-      ALTER TABLE events ADD COLUMN IF NOT EXISTS location VARCHAR(255);
-      ALTER TABLE events ADD COLUMN IF NOT EXISTS budget NUMERIC;
-    `).catch(() => {});
+    `);
 
     // 🤝 SPONSORS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sponsors (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255),
-        email VARCHAR(255),
-        phone VARCHAR(255),
-        company VARCHAR(255),
-        amount NUMERIC,
+        name VARCHAR(255) NOT NULL,
+        industry VARCHAR(100),
+        contact_person VARCHAR(100),
+        email VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'potential',
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // ALTER table fallback for structure updates
-    await pool.query(`
-      ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS phone VARCHAR(255);
-      ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS company VARCHAR(255);
-    `).catch(() => {});
-
-
-    // 📁 SECURE FILES
+    // 📂 SECURE VAULT FILES
     await pool.query(`
       CREATE TABLE IF NOT EXISTS files (
-        file_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        file_id SERIAL PRIMARY KEY,
         file_name VARCHAR(255) NOT NULL,
-        file_type VARCHAR(50) NOT NULL,
-        file_size INT NOT NULL,
-        file_path VARCHAR(512) NOT NULL,
-        uploaded_by INT,
+        file_type VARCHAR(100),
+        file_size INT,
+        file_path TEXT NOT NULL,
+        uploaded_by INT REFERENCES users_tb(id),
         access_role VARCHAR(50) DEFAULT 'admin',
-        encryption_iv VARCHAR(255) NOT NULL,
+        encryption_iv TEXT,
         uploaded_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
-    // 🕵️ SECURE FILE AUDIT LOGS
+    // 🛡️ FILE AUDIT LOGS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS file_audit_logs (
         log_id SERIAL PRIMARY KEY,
-        file_id UUID,
-        user_id INT,
+        file_id INT REFERENCES files(file_id) ON DELETE CASCADE,
+        user_id INT REFERENCES users_tb(id),
         action VARCHAR(50) NOT NULL,
         ip_address VARCHAR(45),
         timestamp TIMESTAMP DEFAULT NOW()
@@ -129,10 +122,6 @@ const createTable = async () => {
         user_agent TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
-    `);
-
-    // Add columns if table already exists
-    await pool.query(`
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50);
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status VARCHAR(20);
       ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
