@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { notifyAdmins } = require("../services/notificationService");
 
 // POST /api/events
 const createEvent = async (req, res) => {
@@ -324,6 +325,19 @@ const requestParticipation = async (req, res) => {
     `;
     const result = await pool.query(query, [user_id, event_id, message || '']);
     res.status(201).json({ message: "Participation requested", request: result.rows[0] });
+
+    // 🔔 Notify Admins
+    try {
+        const userResult = await pool.query("SELECT name FROM users_tb WHERE id = $1", [user_id]);
+        const eventResult = await pool.query("SELECT title FROM events WHERE id = $1", [event_id]);
+        const userName = userResult.rows[0]?.name || "A member";
+        const eventTitle = eventResult.rows[0]?.title || "an event";
+        
+        await notifyAdmins(
+            "New Join Request",
+            `${userName} wants to participate in: ${eventTitle}`
+        );
+    } catch (err) { console.error("Notification trigger failed:", err.message); }
   } catch (error) {
     if (error.code === '23505') { 
       return res.status(400).json({ message: "You have already requested to join this event." });

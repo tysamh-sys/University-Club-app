@@ -1,6 +1,7 @@
 const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { notifyAdmins } = require("../services/notificationService");
 
 // REGISTER
 const register = async (req, res) => {
@@ -60,6 +61,12 @@ const login = async (req, res) => {
         await pool.query(
             "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
             [user.id, req.originalUrl, req.method, ip, 'AUTO_BLOCK_USER', 'danger', userAgent]
+        );
+
+        // 🔔 Notify Admins
+        await notifyAdmins(
+            "Security Alert: Night Block",
+            `User ${user.email} was blocked for login attempt during restricted hours (1AM-4AM).`
         );
         return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });
     }
@@ -169,6 +176,12 @@ const googleLogin = async (req, res) => {
                     "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
                     [user.id, req.originalUrl, req.method, req.headers['x-forwarded-for'] || req.ip, 'AUTO_BLOCK_USER', 'danger', req.headers['user-agent'] || 'Unknown Device']
                 );
+
+                // 🔔 Notify Admins
+                await notifyAdmins(
+                    "Security Alert: Night Block (Google)",
+                    `User ${user.email} was blocked for Google Login attempt during restricted hours.`
+                );
                 return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });
             }
             if (user.is_blacklisted && !isAdmin) {
@@ -235,6 +248,22 @@ const changePassword = async (req, res) => {
     }
 };
 
+const updatePushToken = async (req, res) => {
+    try {
+        const { pushToken } = req.body;
+        const userId = req.user.id;
+
+        await pool.query(
+            "UPDATE users_tb SET push_token = $1 WHERE id = $2",
+            [pushToken, userId]
+        );
+
+        res.json({ message: "Push token updated successfully" });
+    } catch (err) {
+        res.status(500).json(err.message);
+    }
+};
+
 const emergencyUnblock = async (req, res) => {
     try {
         await pool.query("DELETE FROM blocked_users WHERE user_id IN (SELECT id FROM users_tb WHERE role='admin' OR role='president')");
@@ -251,4 +280,4 @@ const emergencyUnblock = async (req, res) => {
     }
 };
 
-module.exports = { register, login, getMe, googleLogin, changePassword, emergencyUnblock };
+module.exports = { register, login, getMe, googleLogin, changePassword, updatePushToken, emergencyUnblock };

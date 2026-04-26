@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { notifyAdmins } = require("../services/notificationService");
 
 // CREATE
 const createUser = async (req, res) => {
@@ -153,6 +154,12 @@ const blockUser = async (req, res) => {
             "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
             [id, '/users/block', 'POST', req.ip || 'System', 'BLOCK_USER', 'danger', req.headers ? req.headers['user-agent'] : 'System']
         );
+
+        // 🔔 Notify Admins
+        await notifyAdmins(
+            "Security Action: User Blocked",
+            `User ID ${id} has been manually blacklisted from the system.`
+        );
         res.json({ message: "User blacklisted successfully" });
     } catch(err) { res.status(500).json(err.message); }
 }
@@ -164,6 +171,12 @@ const unblockUser = async (req, res) => {
         await pool.query(
             "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
             [id, '/users/block', 'DELETE', req.ip || 'System', 'UNBLOCK_USER', 'success', req.headers ? req.headers['user-agent'] : 'System']
+        );
+
+        // 🔔 Notify Admins
+        await notifyAdmins(
+            "Security Action: User Unblocked",
+            `User ID ${id} was removed from the blacklist.`
         );
         res.json({ message: "User removed from blacklist successfully" });
     } catch(err) { res.status(500).json(err.message); }

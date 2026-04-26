@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { notifyAdmins } = require("../services/notificationService");
 
 // POST /problems
 const createProblem = async (req, res) => {
@@ -17,7 +18,21 @@ const createProblem = async (req, res) => {
     `;
     const result = await pool.query(query, [userId, problemText]);
 
-    return res.status(201).json({ message: "Problem reported successfully", data: result.rows[0] });
+    res.status(201).json({
+        message: "Problem reported successfully",
+        problem: result.rows[0]
+    });
+
+    // 🔔 Notify Admins
+    try {
+        const userResult = await pool.query("SELECT name FROM users_tb WHERE id = $1", [userId]);
+        const userName = userResult.rows[0]?.name || "A member";
+        
+        await notifyAdmins(
+            "New Support Ticket",
+            `${userName} reported a new issue: ${problemText.substring(0, 50)}...`
+        );
+    } catch (err) { console.error("Notification trigger failed:", err.message); }
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }

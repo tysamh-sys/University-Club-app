@@ -11,8 +11,10 @@ const createTable = async () => {
         email VARCHAR(100) UNIQUE,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(20) DEFAULT 'member',
+        push_token TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      ALTER TABLE users_tb ADD COLUMN IF NOT EXISTS push_token TEXT;
     `);
 
     // 🚫 BLOCKED USERS (Sentinelle)

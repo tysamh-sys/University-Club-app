@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { notifyAdmins } = require("../services/notificationService");
 const jwt = require("jsonwebtoken");
 
 const requestTracker = {};
@@ -49,6 +50,13 @@ const rateLimiter = async (req, res, next) => {
                 "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
                 [userId, req.originalUrl, req.method, req.ip || 'System', 'AUTO_BLOCK_USER', 'danger', req.headers ? req.headers['user-agent'] : 'System']
             );
+            
+            // 🔔 Notify Admins
+            await notifyAdmins(
+                "Security Alert: Auto-Ban",
+                `User ${userId} was automatically blocked for exceeding rate limits.`
+            );
+
             return res.status(403).json({ message: "Automated Ban: Rate limit exceeded. Blocked for 2 hours." });
         } else {
             console.warn(`⚠️ [Sentinel] Admin ${userId} exceeded rate limit but was not blocked.`);

@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { notifyAdmins } = require("../services/notificationService");
 
 // Fetch logs
 const getLogs = async (req, res) => {
@@ -79,6 +80,12 @@ const blockUserIp = async (req, res) => {
             "INSERT INTO audit_logs (endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6)", 
             ['/security/block-ip', 'POST', ip, 'BLOCK_IP', 'danger', req.headers ? req.headers['user-agent'] : 'System']
         );
+
+        // 🔔 Notify Admins
+        await notifyAdmins(
+            "Security Action: IP Blocked",
+            `IP Address ${ip} has been manually blocked from the system.`
+        );
         res.json({ message: "IP Blocked successfully" });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -93,6 +100,12 @@ const unblockUserIp = async (req, res) => {
         await pool.query(
             "INSERT INTO audit_logs (endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6)", 
             ['/security/block-ip', 'DELETE', ip, 'UNBLOCK_IP', 'success', req.headers ? req.headers['user-agent'] : 'System']
+        );
+
+        // 🔔 Notify Admins
+        await notifyAdmins(
+            "Security Action: IP Unblocked",
+            `IP Address ${ip} was removed from the blacklist.`
         );
         res.json({ message: "IP Unblocked successfully" });
     } catch (err) {
