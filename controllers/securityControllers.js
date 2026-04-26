@@ -31,6 +31,7 @@ const getThreats = async (req, res) => {
             SELECT b.*, u.name, u.email 
             FROM blocked_users b
             LEFT JOIN users_tb u ON b.user_id = u.id
+            WHERE b.expires_at IS NULL OR b.expires_at > NOW()
             ORDER BY b.created_at DESC
         `);
 

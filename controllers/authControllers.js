@@ -39,7 +39,7 @@ const login = async (req, res) => {
     const userAgent = req.headers['user-agent'] || 'Unknown Device';
 
     const result = await pool.query(
-        "SELECT u.*, b.id as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id WHERE u.email = $1",
+        "SELECT u.*, b.id as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id AND (b.expires_at IS NULL OR b.expires_at > NOW()) WHERE u.email = $1",
         [email]
     );
 
@@ -54,7 +54,7 @@ const login = async (req, res) => {
     const currentHour = new Date().getHours();
     if (!isAdmin && currentHour >= 1 && currentHour < 4) {
         await pool.query(
-            "INSERT INTO blocked_users (user_id, reason) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+            "INSERT INTO blocked_users (user_id, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL '2 hours') ON CONFLICT (user_id) DO UPDATE SET reason = $2, expires_at = NOW() + INTERVAL '2 hours' WHERE blocked_users.expires_at IS NOT NULL",
             [user.id, "Automated Sentinel Ban: Logged in during restricted hours (1h - 4h)"]
         );
         return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });
@@ -134,7 +134,7 @@ const googleLogin = async (req, res) => {
         // 🔍 البحث بالإيميل (الأصح)
         // 🔍 البحث بالإيميل
         let result = await pool.query(
-            "SELECT u.*, b.id as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id WHERE u.email = $1",
+            "SELECT u.*, b.id as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id AND (b.expires_at IS NULL OR b.expires_at > NOW()) WHERE u.email = $1",
             [email]
         );
 
@@ -158,7 +158,7 @@ const googleLogin = async (req, res) => {
             const currentHour = new Date().getHours();
             if (!isAdmin && currentHour >= 1 && currentHour < 4) {
                 await pool.query(
-                    "INSERT INTO blocked_users (user_id, reason) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+                    "INSERT INTO blocked_users (user_id, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL '2 hours') ON CONFLICT (user_id) DO UPDATE SET reason = $2, expires_at = NOW() + INTERVAL '2 hours' WHERE blocked_users.expires_at IS NOT NULL",
                     [user.id, "Automated Sentinel Ban: Logged in during restricted hours (1h - 4h)"]
                 );
                 return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });

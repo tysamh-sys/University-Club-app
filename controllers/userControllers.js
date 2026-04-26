@@ -21,7 +21,7 @@ const getUsers = async (req, res) => {
     try {
         const isAdmin = req.user && req.user.role === 'admin';
         const queryStr = isAdmin 
-            ? "SELECT u.id, u.name, u.email, u.role, u.created_at, (b.id IS NOT NULL) as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id ORDER BY id ASC"
+            ? "SELECT u.id, u.name, u.email, u.role, u.created_at, (b.id IS NOT NULL AND (b.expires_at IS NULL OR b.expires_at > NOW())) as is_blacklisted FROM users_tb u LEFT JOIN blocked_users b ON u.id = b.user_id ORDER BY id ASC"
             : "SELECT id, name, role, created_at FROM users_tb ORDER BY id ASC";
             
         const result = await pool.query(queryStr);
@@ -137,6 +137,14 @@ const blockUser = async (req, res) => {
         const { id } = req.params;
         const { reason } = req.body;
         if (req.user.id == id) return res.status(400).json({message: "Cannot blacklist yourself"});
+        
+        // ❌ Prevent blocking an Admin
+        const userRes = await pool.query("SELECT role FROM users_tb WHERE id = $1", [id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ message: "User not found" });
+        if (userRes.rows[0].role === 'admin' || userRes.rows[0].role === 'president') {
+            return res.status(403).json({ message: "Admin accounts cannot be blocked." });
+        }
+
         await pool.query(
             "INSERT INTO blocked_users (user_id, reason) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
             [id, reason || 'Admin API Blacklist']

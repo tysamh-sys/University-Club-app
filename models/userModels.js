@@ -28,6 +28,7 @@ const createTable = async () => {
 
     await pool.query(`
       ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS ip_address TEXT UNIQUE;
+      ALTER TABLE blocked_users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
     `).catch(() => {});
 
     // 📅 EVENTS
