@@ -322,7 +322,7 @@ const requestParticipation = async (req, res) => {
     }
     const event_id = parseInt(req.params.id);
     const user_id = req.user.id;
-    const { message } = req.body;
+    const { message } = req.body || {};
 
     if (isNaN(event_id)) {
         return res.status(400).json({ message: "Invalid Event ID format" });
