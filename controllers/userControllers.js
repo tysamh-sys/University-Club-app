@@ -149,6 +149,10 @@ const blockUser = async (req, res) => {
             "INSERT INTO blocked_users (user_id, reason) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
             [id, reason || 'Admin API Blacklist']
         );
+        await pool.query(
+            "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [id, '/users/block', 'POST', req.ip || 'System', 'BLOCK_USER', 'danger', req.headers ? req.headers['user-agent'] : 'System']
+        );
         res.json({ message: "User blacklisted successfully" });
     } catch(err) { res.status(500).json(err.message); }
 }
@@ -157,6 +161,10 @@ const unblockUser = async (req, res) => {
     try {
         const { id } = req.params;
         await pool.query("DELETE FROM blocked_users WHERE user_id = $1", [id]);
+        await pool.query(
+            "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [id, '/users/block', 'DELETE', req.ip || 'System', 'UNBLOCK_USER', 'success', req.headers ? req.headers['user-agent'] : 'System']
+        );
         res.json({ message: "User removed from blacklist successfully" });
     } catch(err) { res.status(500).json(err.message); }
 }

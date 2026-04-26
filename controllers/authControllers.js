@@ -57,6 +57,10 @@ const login = async (req, res) => {
             "INSERT INTO blocked_users (user_id, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL '2 hours') ON CONFLICT (user_id) DO UPDATE SET reason = $2, expires_at = NOW() + INTERVAL '2 hours' WHERE blocked_users.expires_at IS NOT NULL",
             [user.id, "Automated Sentinel Ban: Logged in during restricted hours (1h - 4h)"]
         );
+        await pool.query(
+            "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+            [user.id, req.originalUrl, req.method, ip, 'AUTO_BLOCK_USER', 'danger', userAgent]
+        );
         return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });
     }
 
@@ -160,6 +164,10 @@ const googleLogin = async (req, res) => {
                 await pool.query(
                     "INSERT INTO blocked_users (user_id, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL '2 hours') ON CONFLICT (user_id) DO UPDATE SET reason = $2, expires_at = NOW() + INTERVAL '2 hours' WHERE blocked_users.expires_at IS NOT NULL",
                     [user.id, "Automated Sentinel Ban: Logged in during restricted hours (1h - 4h)"]
+                );
+                await pool.query(
+                    "INSERT INTO audit_logs (user_id, endpoint, method, ip, action, status, user_agent) VALUES ($1, $2, $3, $4, $5, $6, $7)", 
+                    [user.id, req.originalUrl, req.method, req.headers['x-forwarded-for'] || req.ip, 'AUTO_BLOCK_USER', 'danger', req.headers['user-agent'] || 'Unknown Device']
                 );
                 return res.status(403).json({ message: "Automated Ban: Logins are strictly disabled between 1 AM and 4 AM." });
             }
