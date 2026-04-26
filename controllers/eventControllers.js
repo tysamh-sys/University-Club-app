@@ -400,7 +400,17 @@ const approveRequest = async (req, res) => {
     const request_id = req.params.id;
     const query = `UPDATE participation_requests SET status = 'approved', updated_at = NOW() WHERE request_id = $1 RETURNING *`;
     const result = await pool.query(query, [request_id]);
-    res.json({ message: "Approved", request: result.rows[0] });
+    const request = result.rows[0];
+    
+    // 🔔 Notify User
+    if (request) {
+        await pool.query(
+          "INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)",
+          [request.user_id, "Event Approved", "Your request to participate has been approved!"]
+        ).catch(e => console.error("Event approval notification failed:", e));
+    }
+
+    res.json({ message: "Approved", request });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -412,7 +422,17 @@ const rejectRequest = async (req, res) => {
     const request_id = req.params.id;
     const query = `UPDATE participation_requests SET status = 'rejected', updated_at = NOW() WHERE request_id = $1 RETURNING *`;
     const result = await pool.query(query, [request_id]);
-    res.json({ message: "Rejected", request: result.rows[0] });
+    const request = result.rows[0];
+
+    // 🔔 Notify User
+    if (request) {
+        await pool.query(
+          "INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)",
+          [request.user_id, "Event Rejected", "Unfortunately, your request to join the event was declined."]
+        ).catch(e => console.error("Event rejection notification failed:", e));
+    }
+
+    res.json({ message: "Rejected", request });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

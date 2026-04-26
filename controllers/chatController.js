@@ -57,6 +57,12 @@ const sendMessage = async (req, res) => {
     `;
     const result = await pool.query(query, [senderId, receiverId, encryptedMessage, nonce]);
 
+    // 🔔 Notify Receiver
+    await pool.query(
+      "INSERT INTO notifications (user_id, title, message) VALUES ($1, $2, $3)",
+      [receiverId, "New Message", `You received an encrypted message from ${req.user.name}`]
+    ).catch(e => console.error("Chat notification failed:", e));
+
     return res.status(201).json({ message: "Message sent", data: result.rows[0] });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
