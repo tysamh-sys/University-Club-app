@@ -4,6 +4,13 @@ const crypto = require("crypto");
 const pool = require("../config/db");
 const { encryptFileStream, decryptFileStream } = require("../services/cryptoService");
 
+// Ensure vault directory exists
+const vaultDir = path.join(__dirname, "../vault/encrypted");
+if (!fs.existsSync(vaultDir)) {
+    fs.mkdirSync(vaultDir, { recursive: true });
+}
+
+
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -53,7 +60,8 @@ const uploadFile = async (req, res) => {
     });
 
   } catch (error) {
-    return res.status(500).json({ message: "Upload failed", error: error.message });
+    console.error("CRITICAL UPLOAD ERROR:", error);
+    return res.status(500).json({ message: "Upload failed internally", error: error.message });
   }
 };
 
