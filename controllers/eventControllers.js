@@ -329,7 +329,29 @@ const requestParticipation = async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING *;
     `;
-    const result = await pool.query(query, [user_id, event_id, message || '']);
+    let result;
+    try {
+        result = await pool.query(query, [user_id, event_id, message || '']);
+    } catch (dbErr) {
+        if (dbErr.message.includes('relation "participation_requests" does not exist')) {
+            console.log("Healing DB: Creating participation_requests table...");
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS participation_requests (
+                    request_id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users_tb(id) ON DELETE CASCADE,
+                    event_id INT REFERENCES events(id) ON DELETE CASCADE,
+                    message TEXT,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(user_id, event_id)
+                );
+            `);
+            result = await pool.query(query, [user_id, event_id, message || '']);
+        } else {
+            throw dbErr;
+        }
+    }
     res.status(201).json({ message: "Participation requested", request: result.rows[0] });
 
     // 🔔 Notify Admins
