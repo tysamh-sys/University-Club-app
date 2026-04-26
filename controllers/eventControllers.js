@@ -314,9 +314,15 @@ const restoreEvent = async (req, res) => {
 // 🎫 PARTICIPATION LOGIC
 const requestParticipation = async (req, res) => {
   try {
-    const event_id = req.params.id;
+    const event_id = parseInt(req.params.id);
     const user_id = req.user.id;
     const { message } = req.body;
+
+    if (isNaN(event_id)) {
+        return res.status(400).json({ message: "Invalid Event ID format" });
+    }
+
+    console.log(`Processing participation request: User ${user_id} -> Event ${event_id}`);
 
     const query = `
       INSERT INTO participation_requests (user_id, event_id, message)
@@ -339,6 +345,7 @@ const requestParticipation = async (req, res) => {
         );
     } catch (err) { console.error("Notification trigger failed:", err.message); }
   } catch (error) {
+    console.error("PARTICIPATION REQUEST ERROR:", error);
     if (error.code === '23505') { 
       return res.status(400).json({ message: "You have already requested to join this event." });
     }
