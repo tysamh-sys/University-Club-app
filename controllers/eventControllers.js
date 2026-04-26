@@ -317,6 +317,9 @@ const restoreEvent = async (req, res) => {
 // 🎫 PARTICIPATION LOGIC
 const requestParticipation = async (req, res) => {
   try {
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "User session not found. Please log in again." });
+    }
     const event_id = parseInt(req.params.id);
     const user_id = req.user.id;
     const { message } = req.body;
@@ -368,7 +371,11 @@ const requestParticipation = async (req, res) => {
             "New Join Request",
             `${userName} wants to participate in: ${eventTitle}`
         );
-    } catch (err) { console.error("Notification trigger failed:", err.message); }
+
+        // Also add to in-app notifications for admins if needed
+    } catch (notifErr) {
+        console.error("Admin notification failed:", notifErr.message);
+    }
   } catch (error) {
     console.error("PARTICIPATION REQUEST ERROR:", error);
     if (error.code === '23505') { 

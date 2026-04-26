@@ -107,6 +107,7 @@ const createTable = async () => {
         updated_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, event_id)
       );
+      ALTER TABLE participation_requests ADD COLUMN IF NOT EXISTS message TEXT;
     `);
 
     // 📊 LOGS (Sentinelle brain)
